@@ -1,0 +1,200 @@
+#' Infer a clinical phenotype from a gene expression matrix
+#'
+#' Projects `expr` onto the same RAV basis used to train the chosen
+#' `phenotype` head, then returns class probabilities (binary/multiclass)
+#' or predicted values (regression), plus a per-sample `confidence`
+#' column and a head-level performance summary attached as attributes.
+#'
+#' @param expr A genes-x-samples numeric matrix or SummarizedExperiment.
+#'   Rownames must be HGNC symbols.
+#' @param phenotype Character. Phenotype to infer; one of
+#'   `availablePheno()$phenotype`.
+#' @param rav_model Optional pre-loaded GSS RAVmodel. If `NULL`, the basis
+#'   recorded with the phenotype (`rav_prior`) is resolved automatically:
+#'   published priors (e.g. `"C2"`) are fetched with
+#'   `GenomicSuperSignature::getModel()`, while a custom basis (e.g. the
+#'   cohesion-gated de-redundant model) is read from the path in
+#'   `getOption("inferpheno.rav_model_path")` or the `INFERPHENO_RAV_MODEL`
+#'   environment variable. Pass `rav_model` directly to override either.
+#'
+#' @return An `inferpheno_result` (data.frame subclass) with one row per
+#'   sample. Always carries a `confidence` column (max class probability
+#'   for binary/multiclass; `NA_real_` for regression/cox). The
+#'   `phenotype`, `kind`, and `head_perf` attributes report which head
+#'   was used and its out-of-fold performance.
+#'
+#' @seealso [availablePheno()]
+#' @export
+inferpheno <- function(expr, phenotype, rav_model = NULL) {
+  m <- .load_pheno_model(phenotype)
+  if (is.null(rav_model)) {
+    rav_model <- .resolve_rav_model(m@rav_prior)
+  }
+  if (methods::is(expr, "SummarizedExperiment")) {
+    expr <- SummarizedExperiment::assay(expr)
+  }
+  rav <- GenomicSuperSignature::calculateScore(expr, rav_model)
+  rownames(rav) <- gsub("\\.", "-", rownames(rav))
+  newx <- as.data.frame(rav[, m@rav_cols, drop = FALSE])
+  out <- .predict_head(m, newx)
+
+  perf <- .head_perf(m)
+  attr(out, "phenotype") <- m@phenotype
+  attr(out, "kind")      <- m@kind
+  attr(out, "head_perf") <- perf
+  class(out) <- c("inferpheno_result", class(out))
+  out
+}
+
+#' Project an expression matrix onto the RAV basis
+#' @param expr A genes-x-samples matrix or SummarizedExperiment.
+#' @param prior Character. GSS prior name. Default `"C2"`.
+#' @return A samples-x-RAVs numeric matrix.
+#' @export
+projectExpression <- function(expr, prior = "C2") {
+  rav_model <- GenomicSuperSignature::getModel(prior, load = TRUE)
+  if (methods::is(expr, "SummarizedExperiment")) {
+    expr <- SummarizedExperiment::assay(expr)
+  }
+  out <- GenomicSuperSignature::calculateScore(expr, rav_model)
+  rownames(out) <- gsub("\\.", "-", rownames(out))
+  out
+}
+
+#' List ready-to-infer phenotypes
+#'
+#' Reads each bundled head from `inst/extdata/` to surface its training
+#' metadata. The list is the contract: every row corresponds to a
+#' phenotype that `inferpheno()` can be called on today.
+#'
+#' @return A data.frame with columns `phenotype`, `kind`, `n_train`,
+#'   `metric` (which out-of-fold metric `perf` reports), and `perf`.
+#' @seealso [inferpheno()]
+#' @export
+availablePheno <- function() {
+  reg <- .pheno_registry()
+  rows <- lapply(names(reg), function(ph) {
+    rds <- system.file("extdata", reg[[ph]]$rds, package = "InferPheno")
+    if (!nzchar(rds)) {
+      stop("Bundled head file missing for ", ph,
+           ". Re-install InferPheno.")
+    }
+    m <- readRDS(rds)
+    perf <- .head_perf(m)
+    data.frame(phenotype = ph,
+               kind      = m@kind,
+               n_train   = as.integer(m@training_meta$n_train %||% NA),
+               metric    = perf$metric %||% NA_character_,
+               perf      = perf$value %||% NA_real_,
+               stringsAsFactors = FALSE)
+  })
+  do.call(rbind, rows)
+}
+
+#' RAV columns used by a bundled head
+#' @param phenotype Character.
+#' @export
+listRAVs <- function(phenotype) {
+  .load_pheno_model(phenotype)@rav_cols
+}
+
+#' @export
+print.inferpheno_result <- function(x, ...) {
+  perf <- attr(x, "head_perf")
+  cat(sprintf("inferpheno() result for phenotype '%s' (kind: %s)\n",
+              attr(x, "phenotype"), attr(x, "kind")))
+  if (!is.null(perf) && !is.null(perf$value) && !is.na(perf$value)) {
+    cat(sprintf("Head performance: %s = %.3f (n_train = %s)\n",
+                perf$metric, perf$value,
+                if (is.null(perf$n_train)) "NA" else perf$n_train))
+  } else {
+    cat("Head performance: unavailable\n")
+  }
+  cat("\n")
+  NextMethod()
+  invisible(x)
+}
+
+.predict_head <- function(m, newx) {
+  if (m@kind == "binary") {
+    pr <- stats::predict(m@model, newdata = newx, type = "prob")
+    data.frame(class = stats::predict(m@model, newdata = newx),
+               prob_positive = pr[, 2],
+               prob_negative = pr[, 1],
+               confidence    = pmax(pr[, 1], pr[, 2]))
+  } else if (m@kind == "multiclass") {
+    pr <- stats::predict(m@model, newdata = newx, type = "prob")
+    cbind(data.frame(class = stats::predict(m@model, newdata = newx)),
+          as.data.frame(pr),
+          data.frame(confidence = apply(pr, 1, max)))
+  } else if (m@kind == "regression") {
+    data.frame(prediction = as.numeric(stats::predict(m@model, newdata = newx)),
+               confidence = NA_real_)
+  } else if (m@kind == "cox") {
+    data.frame(linear_predictor = as.numeric(
+                 stats::predict(m@model, newdata = newx, type = "lp")),
+               confidence = NA_real_)
+  } else stop("Unknown head kind: ", m@kind)
+}
+
+.head_perf <- function(m) {
+  meta <- m@training_meta
+  metric <- if (!is.null(meta$auc_oof) && !is.na(meta$auc_oof)) {
+    "auc_oof"
+  } else if (!is.null(meta$r2_oof) && !is.na(meta$r2_oof)) {
+    "r2_oof"
+  } else if (!is.null(meta$accuracy_oof) && !is.na(meta$accuracy_oof)) {
+    "accuracy_oof"
+  } else NA_character_
+  value <- if (!is.na(metric)) meta[[metric]] else NA_real_
+  list(metric = metric, value = value,
+       n_train = meta$n_train %||% NA_integer_)
+}
+
+# Published GSS priors resolvable through getModel(); anything else is treated
+# as a custom basis that must be supplied locally (it is too large to bundle).
+.known_priors <- function() c("C2", "PLIERpriors")
+
+.resolve_rav_model <- function(prior) {
+  if (prior %in% .known_priors()) {
+    return(GenomicSuperSignature::getModel(prior, load = TRUE))
+  }
+  path <- getOption("inferpheno.rav_model_path",
+                    Sys.getenv("INFERPHENO_RAV_MODEL", unset = ""))
+  if (!nzchar(path)) {
+    stop("Phenotype head uses a custom RAV basis ('", prior, "') that is not a ",
+         "GenomicSuperSignature prior and is too large to bundle.\n",
+         "Point InferPheno at the basis .rds with one of:\n",
+         "  options(inferpheno.rav_model_path = '/path/to/", prior, ".rds')\n",
+         "  Sys.setenv(INFERPHENO_RAV_MODEL = '/path/to/", prior, ".rds')\n",
+         "or pass a pre-loaded basis via inferpheno(..., rav_model = readRDS(...)).",
+         call. = FALSE)
+  }
+  if (!file.exists(path)) {
+    stop("inferpheno.rav_model_path / INFERPHENO_RAV_MODEL points to a missing ",
+         "file: ", path, call. = FALSE)
+  }
+  readRDS(path)
+}
+
+.load_pheno_model <- function(phenotype) {
+  reg <- .pheno_registry()
+  if (!phenotype %in% names(reg)) {
+    stop("Unknown phenotype: ", phenotype, ". See availablePheno().")
+  }
+  rds <- system.file("extdata", reg[[phenotype]]$rds, package = "InferPheno")
+  if (!nzchar(rds)) stop("Bundled head file missing for ", phenotype, ".")
+  readRDS(rds)
+}
+
+.pheno_registry <- function() {
+  list(
+    sex         = list(rds = "sex.rds",         kind = "binary"),
+    msi_status  = list(rds = "msi_status.rds",  kind = "binary"),
+    msi_score   = list(rds = "msi_score.rds",   kind = "regression"),
+    cms_subtype = list(rds = "cms_subtype.rds", kind = "multiclass"),
+    neutrophil  = list(rds = "neutrophil.rds",  kind = "regression")
+  )
+}
+
+`%||%` <- function(a, b) if (is.null(a)) b else a

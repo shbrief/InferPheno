@@ -1,0 +1,32 @@
+# History files
+.Rhistory
+.Rapp.history
+
+# Session Data files
+.RData
+.RDataTmp
+
+# User-specific files
+.Ruserdata
+
+# R package build artifacts
+*.Rcheck/
+*.tar.gz
+.Rproj.user/
+*.Rproj
+
+# Output and temp files
+*.o
+*.so
+*.dll
+
+# knitr / vignette caches
+*_cache/
+*.utf8.md
+*.knit.md
+
+# macOS
+.DS_Store
+
+# Task / scratch workspace (not part of the package)
+task-inferpheno/
