@@ -20,10 +20,11 @@
 *.so
 *.dll
 
-# knitr / vignette caches
+# knitr / vignette caches and built output
 *_cache/
 *.utf8.md
 *.knit.md
+vignettes/*.html
 
 # macOS
 .DS_Store
