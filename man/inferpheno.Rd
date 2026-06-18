@@ -13,9 +13,13 @@ Rownames must be HGNC symbols.}
 \item{phenotype}{Character. Phenotype to infer; one of
 \code{availablePheno()$phenotype}.}
 
-\item{rav_model}{Optional pre-loaded GSS RAVmodel. If \code{NULL}, the
-model is fetched via \code{GenomicSuperSignature::getModel()} using the
-prior recorded with the phenotype.}
+\item{rav_model}{Optional pre-loaded GSS RAVmodel. If \code{NULL}, the basis
+recorded with the phenotype (\code{rav_prior}) is resolved automatically:
+published priors (e.g. \code{"C2"}) are fetched with
+\code{GenomicSuperSignature::getModel()}, while a custom basis (e.g. the
+cohesion-gated de-redundant model) is read from the path in
+\code{getOption("inferpheno.rav_model_path")} or the \code{INFERPHENO_RAV_MODEL}
+environment variable. Pass \code{rav_model} directly to override either.}
 }
 \value{
 An \code{inferpheno_result} (data.frame subclass) with one row per
