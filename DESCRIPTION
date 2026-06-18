@@ -1,0 +1,44 @@
+Package: InferPheno
+Title: Phenotype Inference from Replicable Axes of Variation
+Version: 0.99.0
+Authors@R: c(
+    person("Sehyun", "Oh", , "shbrief@gmail.com", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0002-9490-3061")))
+Description: Infer clinical and molecular phenotypes from gene expression
+    data using a fixed, unsupervised Replicable Axes of Variation (RAV)
+    basis from GenomicSuperSignature. Ships pre-fit supervised heads for
+    sex, microsatellite instability status, MSI score, consensus
+    molecular subtype, and additional phenotypes scored in the
+    accompanying atlas. Designed as a drop-in alternative to
+    task-specific classifiers when interpretability and cross-platform
+    transfer matter more than peak accuracy on the source platform.
+License: Artistic-2.0
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Depends:
+    R (>= 4.4)
+Imports:
+    GenomicSuperSignature,
+    SummarizedExperiment,
+    caret,
+    glmnet,
+    graphics,
+    methods,
+    pROC,
+    randomForest,
+    stats,
+    survival
+Suggests:
+    BiocStyle,
+    CMSclassifier,
+    CMScaller,
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0),
+    withr
+biocViews: GeneExpression, Classification, Transcriptomics, Software
+VignetteBuilder: knitr
+URL: https://github.com/shbrief/InferPheno
+BugReports: https://github.com/shbrief/InferPheno/issues
+Config/testthat/edition: 3
