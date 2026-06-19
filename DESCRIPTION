@@ -27,8 +27,12 @@ Imports:
     methods,
     stats
 Suggests:
+    AnnotationDbi,
+    Biobase,
     BiocStyle,
+    CMScaller,
     knitr,
+    org.Hs.eg.db,
     rmarkdown,
     testthat (>= 3.0.0)
 biocViews: GeneExpression, Classification, Transcriptomics, Software

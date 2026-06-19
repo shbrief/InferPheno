@@ -49,16 +49,16 @@ one row per sample — carrying a per-sample `confidence` column and
 ## Available phenotypes
 
 The shipped heads are fit on the **cohesion-gated de-redundant RAVmodel**
-(2,377 RAVs; `rav_prior = "cohesion"`). Each is a non-penalized model over a
+(1,760 RAVs; `rav_prior = "cohesion"`). Each is a non-penalized model over a
 minimal top-K-by-|β| RAV panel, refit on all training data.
 
 | Phenotype     | Kind        | Panel K | Out-of-fold performance     |
 |---------------|-------------|--------:|-----------------------------|
-| `sex`         | binary      |       5 | AUC 0.986                   |
-| `msi_status`  | binary      |      20 | AUC 0.974                   |
-| `msi_score`   | regression  |      30 | R² 0.610, ρ 0.404           |
-| `cms_subtype` | multiclass  |      20 | acc 0.925, macro-F1 0.917   |
-| `neutrophil`  | regression  |       3 | R² 0.965, ρ 0.937           |
+| `sex`         | binary      |       5 | AUC 0.990                   |
+| `msi_status`  | binary      |      20 | AUC 0.951                   |
+| `msi_score`   | regression  |      30 | R² 0.617, ρ 0.517           |
+| `cms_subtype` | multiclass  |      20 | acc 0.925, macro-F1 0.914   |
+| `neutrophil`  | regression  |       3 | R² 0.899, ρ 0.783           |
 
 `availablePheno()` is the live contract — it reads each bundled head and is
 the authoritative source for what `inferpheno()` can be called on. Use
@@ -69,7 +69,7 @@ the authoritative source for what `inferpheno()` can be called on. Use
 Heads built on a published GenomicSuperSignature prior (`C2`, `PLIERpriors`)
 resolve their basis automatically via `GenomicSuperSignature::getModel()`.
 
-The cohesion basis the shipped heads use (~240 MB) is too large to bundle
+The cohesion basis the shipped heads use (~190 MB) is too large to bundle
 and is **not** a `getModel()` prior, so it must be supplied locally. Point
 InferPheno at the basis `.rds` once per session:
 
@@ -103,13 +103,15 @@ packages:
   (`run_cmsclassifier()`, `run_cmscaller()`, `run_xist_y_panel()`,
   `run_msi_expression_panel()`), and the per-task benchmark vignettes.
 
-See `InferPheno.Rmd` for the end-user inference workflow.
+See `quick-start.Rmd` for a hands-on held-out walkthrough (calling CMS on a
+metastatic-CRC cohort the heads never saw) and `InferPheno.Rmd` for the
+end-user inference workflow.
 
 ## Provenance
 
 The cohesion-gated de-redundant RAV basis and the head-fitting methodology
 come from
-`~/GSS/GenomicSuperSignatureLibrary/refinebioRseq/RAVmodel_536_adaptive_treecut/de_redundance/cohesion/`
+`~/GSS/GenomicSuperSignatureLibrary/refinebioRseq/RAVmodel_536_adaptive_cohesion/cohesion/`
 (`METHODS.md`, `RESULTS.md`).
 
 ## License
