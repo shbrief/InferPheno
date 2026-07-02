@@ -50,15 +50,17 @@ one row per sample — carrying a per-sample `confidence` column and
 
 The shipped heads are fit on the **cohesion-gated de-redundant RAVmodel**
 (1,760 RAVs; `rav_prior = "cohesion"`). Each is a non-penalized model over a
-minimal top-K-by-|β| RAV panel, refit on all training data.
+top-K-by-|β| RAV panel, refit on all training data. K is chosen by the
+paper's survivor-ranked, multi-metric rule (proper score + calibration +
+selection stability; `sex` falls back to its discrimination-only K).
 
 | Phenotype     | Kind        | Panel K | Out-of-fold performance     |
 |---------------|-------------|--------:|-----------------------------|
-| `sex`         | binary      |       5 | AUC 0.990                   |
+| `sex`         | binary      |       8 | AUC 0.994                   |
 | `msi_status`  | binary      |      20 | AUC 0.951                   |
-| `msi_score`   | regression  |      30 | R² 0.617, ρ 0.517           |
-| `cms_subtype` | multiclass  |      20 | acc 0.925, macro-F1 0.914   |
-| `neutrophil`  | regression  |       3 | R² 0.899, ρ 0.783           |
+| `msi_score`   | regression  |      50 | R² 0.701, ρ 0.441           |
+| `cms_subtype` | multiclass  |       3 | acc 0.714, macro-F1 0.674   |
+| `neutrophil`  | regression  |      10 | R² 0.987, ρ 0.966           |
 
 `availablePheno()` is the live contract — it reads each bundled head and is
 the authoritative source for what `inferpheno()` can be called on. Use
@@ -69,9 +71,15 @@ the authoritative source for what `inferpheno()` can be called on. Use
 Heads built on a published GenomicSuperSignature prior (`C2`, `PLIERpriors`)
 resolve their basis automatically via `GenomicSuperSignature::getModel()`.
 
-The cohesion basis the shipped heads use (~190 MB) is too large to bundle
-and is **not** a `getModel()` prior, so it must be supplied locally. Point
-InferPheno at the basis `.rds` once per session:
+For the cohesion basis, the package **ships a compact subset** of the loadings
+(`inst/extdata/cohesion_subset.rds`) carrying only the RAVs the supported heads
+use (72 of 1,760). `calculateScore()` scores each RAV independently, so this
+column-subset yields bit-identical scores — `inferpheno()` works out of the box
+with no setup, and the full ~190 MB basis is never required for prediction.
+
+You only need the **full** basis to develop or refit heads (it spans RAVs the
+shipped subset omits). Point InferPheno at it and the override takes precedence
+over the bundled subset:
 
 ```r
 options(inferpheno.rav_model_path = "/path/to/RAVmodel_cohesion.rds")

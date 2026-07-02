@@ -16,10 +16,13 @@ Rownames must be HGNC symbols.}
 \item{rav_model}{Optional pre-loaded GSS RAVmodel. If \code{NULL}, the basis
 recorded with the phenotype (\code{rav_prior}) is resolved automatically:
 published priors (e.g. \code{"C2"}) are fetched with
-\code{GenomicSuperSignature::getModel()}, while a custom basis (e.g. the
-cohesion-gated de-redundant model) is read from the path in
-\code{getOption("inferpheno.rav_model_path")} or the \code{INFERPHENO_RAV_MODEL}
-environment variable. Pass \code{rav_model} directly to override either.}
+\code{GenomicSuperSignature::getModel()}, while the custom cohesion basis
+resolves to a compact loadings subset bundled with the package (it carries
+only the RAVs the supported heads use, so built-in predictions work out of
+the box). To use the full basis instead -- e.g. to add or refit heads --
+set \code{getOption("inferpheno.rav_model_path")} or the \code{INFERPHENO_RAV_MODEL}
+environment variable to a full RAVmodel \code{.rds}; an explicit override always
+wins. Pass \code{rav_model} directly to override either.}
 }
 \value{
 An \code{inferpheno_result} (data.frame subclass) with one row per

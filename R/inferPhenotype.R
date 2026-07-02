@@ -12,10 +12,13 @@
 #' @param rav_model Optional pre-loaded GSS RAVmodel. If `NULL`, the basis
 #'   recorded with the phenotype (`rav_prior`) is resolved automatically:
 #'   published priors (e.g. `"C2"`) are fetched with
-#'   `GenomicSuperSignature::getModel()`, while a custom basis (e.g. the
-#'   cohesion-gated de-redundant model) is read from the path in
-#'   `getOption("inferpheno.rav_model_path")` or the `INFERPHENO_RAV_MODEL`
-#'   environment variable. Pass `rav_model` directly to override either.
+#'   `GenomicSuperSignature::getModel()`, while the custom cohesion basis
+#'   resolves to a compact loadings subset bundled with the package (it carries
+#'   only the RAVs the supported heads use, so built-in predictions work out of
+#'   the box). To use the full basis instead -- e.g. to add or refit heads --
+#'   set `getOption("inferpheno.rav_model_path")` or the `INFERPHENO_RAV_MODEL`
+#'   environment variable to a full RAVmodel `.rds`; an explicit override always
+#'   wins. Pass `rav_model` directly to override either.
 #'
 #' @return An `inferpheno_result` (data.frame subclass) with one row per
 #'   sample. Always carries a `confidence` column (max class probability
@@ -100,6 +103,12 @@ listRAVs <- function(phenotype) {
 
 #' @export
 print.inferpheno_result <- function(x, ...) {
+  # `[.data.frame` keeps this subclass but drops the attributes that carry the
+  # phenotype/kind/performance metadata. A subset is no longer a self-describing
+  # result, so print it as the plain data.frame it has become.
+  if (is.null(attr(x, "phenotype"))) {
+    return(print(structure(x, class = "data.frame"), ...))
+  }
   perf <- attr(x, "head_perf")
   cat(sprintf("inferpheno() result for phenotype '%s' (kind: %s)\n",
               attr(x, "phenotype"), attr(x, "kind")))
@@ -159,22 +168,34 @@ print.inferpheno_result <- function(x, ...) {
   if (prior %in% .known_priors()) {
     return(GenomicSuperSignature::getModel(prior, load = TRUE))
   }
+  # An explicit override always wins: it lets developers point at the full
+  # basis (e.g. to add or refit heads). Honour it before the bundled subset.
   path <- getOption("inferpheno.rav_model_path",
                     Sys.getenv("INFERPHENO_RAV_MODEL", unset = ""))
-  if (!nzchar(path)) {
-    stop("Phenotype head uses a custom RAV basis ('", prior, "') that is not a ",
-         "GenomicSuperSignature prior and is too large to bundle.\n",
-         "Point InferPheno at the basis .rds with one of:\n",
-         "  options(inferpheno.rav_model_path = '/path/to/", prior, ".rds')\n",
-         "  Sys.setenv(INFERPHENO_RAV_MODEL = '/path/to/", prior, ".rds')\n",
-         "or pass a pre-loaded basis via inferpheno(..., rav_model = readRDS(...)).",
-         call. = FALSE)
+  if (nzchar(path)) {
+    if (!file.exists(path)) {
+      stop("inferpheno.rav_model_path / INFERPHENO_RAV_MODEL points to a ",
+           "missing file: ", path, call. = FALSE)
+    }
+    return(readRDS(path))
   }
-  if (!file.exists(path)) {
-    stop("inferpheno.rav_model_path / INFERPHENO_RAV_MODEL points to a missing ",
-         "file: ", path, call. = FALSE)
+  # Otherwise fall back to the compact loadings subset bundled with the
+  # package. `calculateScore()` accepts a plain genes-x-RAVs matrix, and the
+  # subset carries every RAV used by the supported heads, so this serves all
+  # built-in predictions without the full basis.
+  subset_rds <- system.file("extdata", paste0(prior, "_subset.rds"),
+                            package = "InferPheno")
+  if (nzchar(subset_rds)) {
+    return(readRDS(subset_rds))
   }
-  readRDS(path)
+  stop("Phenotype head uses a custom RAV basis ('", prior, "') that is not a ",
+       "GenomicSuperSignature prior, and no bundled subset ('", prior,
+       "_subset.rds') was found.\n",
+       "Point InferPheno at the full basis .rds with one of:\n",
+       "  options(inferpheno.rav_model_path = '/path/to/", prior, ".rds')\n",
+       "  Sys.setenv(INFERPHENO_RAV_MODEL = '/path/to/", prior, ".rds')\n",
+       "or pass a pre-loaded basis via inferpheno(..., rav_model = readRDS(...)).",
+       call. = FALSE)
 }
 
 .load_pheno_model <- function(phenotype) {
