@@ -31,6 +31,7 @@ Suggests:
     Biobase,
     BiocStyle,
     CMScaller,
+    ggplot2,
     knitr,
     org.Hs.eg.db,
     rmarkdown,
