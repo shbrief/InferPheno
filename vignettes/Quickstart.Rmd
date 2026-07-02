@@ -1,0 +1,255 @@
+---
+title: "Quickstart: predicting CMS on a held-out cohort"
+author: "Sehyun Oh"
+date: "`r Sys.Date()`"
+output:
+  BiocStyle::html_document:
+    toc: true
+    toc_depth: 2
+vignette: >
+  %\VignetteIndexEntry{Quick start: predicting CMS on a held-out cohort}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+
+## The cohesion RAV basis ships with the package as a compact subset, so
+## inferpheno() runs out of the box. This held-out CMS example additionally
+## needs two Suggests packages (the demo data and gene-ID mapping); when those
+## are absent the chunks are shown but not evaluated, and the outputs printed
+## below are the real results from one such run.
+have_deps <- requireNamespace("CMScaller", quietly = TRUE) &&
+  requireNamespace("org.Hs.eg.db", quietly = TRUE)
+
+## The figures below need ggplot2 in addition to the live results; gate them
+## separately so the numeric analysis still runs without a plotting backend.
+have_plot <- have_deps && requireNamespace("ggplot2", quietly = TRUE)
+```
+
+# What this shows
+
+`InferPheno` infers a phenotype from gene expression in two stages: it
+**projects** new expression onto a fixed, unsupervised
+[Replicable Axes of Variation (RAV)](https://bioconductor.org/packages/GenomicSuperSignature)
+basis, then applies a small **supervised head** trained once and shipped
+with the package. Because the feature basis is fixed before the label is
+seen, a head can be applied to cohorts and platforms it never saw during
+fitting.
+
+This quick start does exactly that: it takes a head trained on **primary**
+colorectal cancer (CRC) and uses it to call consensus molecular subtype
+(CMS) on a **held-out, metastatic** CRC cohort profiled on a different
+platform — none of whose samples were part of training.
+
+# Setup
+
+```{r install, eval = FALSE}
+# install.packages("devtools")
+devtools::install("~/GSS/InferPheno")
+```
+
+```{r libs, eval = have_deps}
+library(InferPheno)
+```
+
+`inferpheno()` needs the RAV basis the heads were built on. A compact subset
+of the cohesion basis — just the RAVs the shipped heads use — is bundled with
+the package, so no setup is required. You only need the full ~190 MB basis to
+develop or refit heads; point InferPheno at it to override the bundled subset
+(see [the README](https://github.com/shbrief/InferPheno)):
+
+```{r basis, eval = FALSE}
+options(inferpheno.rav_model_path = "/path/to/RAVmodel_cohesion.rds")
+# or  Sys.setenv(INFERPHENO_RAV_MODEL = "/path/to/RAVmodel_cohesion.rds")
+# or  pass it directly:  inferpheno(expr, ..., rav_model = readRDS("..."))
+```
+
+## What can I infer today?
+
+`availablePheno()` is the live contract: each row is a phenotype
+`inferpheno()` can be called on, with the head's out-of-fold performance.
+
+```{r avail, eval = have_deps}
+availablePheno()
+```
+
+```{r avail-show, echo = FALSE, eval = !have_deps}
+data.frame(
+  phenotype = c("sex", "msi_status", "msi_score", "cms_subtype", "neutrophil"),
+  kind      = c("binary", "binary", "regression", "multiclass", "regression"),
+  n_train   = c(2069L, 745L, 555L, 1355L, 76L),
+  metric    = c("auc_oof", "auc_oof", "r2_oof", "accuracy_oof", "r2_oof"),
+  perf      = c(0.994, 0.951, 0.701, 0.714, 0.987))
+```
+
+# A held-out example: CMS on metastatic CRC
+
+The `cms_subtype` head was trained across eight primary-CRC microarray
+cohorts plus TCGA RNA-seq (n = 1,355). For a fair held-out test we use the
+Oslo metastatic-CRC series shipped with
+[CMScaller](https://bioconductor.org/packages/CMScaller)
+(`mcrcOSLOsubset`, n = 295) — a different lab, platform, and disease stage,
+absent from training. Its CMS calls from CMScaller's PAM classifier serve
+as the reference.
+
+```{r load-oslo, eval = have_deps}
+library(InferPheno)
+library(CMScaller)        # held-out data + reference CMS calls
+library(Biobase)
+library(org.Hs.eg.db)
+library(AnnotationDbi)
+
+data("mcrcOSLOsubset")
+eset <- mcrcOSLOsubset
+```
+
+`inferpheno()` expects HGNC-symbol rownames, so map the cohort's Entrez IDs:
+
+```{r prep, eval = have_deps}
+expr <- exprs(eset)
+sym  <- mapIds(org.Hs.eg.db, rownames(expr),
+               keytype = "ENTREZID", column = "SYMBOL", multiVals = "first")
+keep <- !is.na(sym) & !duplicated(sym)
+expr <- expr[keep, ]
+rownames(expr) <- sym[keep]
+dim(expr)        # genes x samples
+```
+
+```{r prep-show, echo = FALSE, eval = !have_deps}
+cat("#> [1] 1373  295\n")
+```
+
+Now infer. Project the whole cohort at once (the projection standardizes
+genes across the samples you pass, so give it a cohort, not one sample at a
+time):
+
+```{r infer, eval = have_deps}
+res <- inferpheno(expr, "cms_subtype")
+res[1:4, 1:5]
+```
+
+```{r infer-show, echo = FALSE, eval = !have_deps}
+cat("#>        class         CMS1        CMS2        CMS3        CMS4\n",
+    "#> 001_T1  CMS2 0.0004680278 0.781343300 0.005338214 0.212850458\n",
+    "#> 002_T1  CMS2 0.0002105928 0.899164325 0.002530896 0.098094186\n",
+    "#> 003_T1  CMS1 0.5186408226 0.001405632 0.478320248 0.001633298\n",
+    "#> 003_T2  CMS1 0.7593658896 0.001902760 0.220010827 0.018720524\n",
+    sep = "")
+```
+
+The result is one row per sample: the called `class`, a probability per
+subtype, and a `confidence` column (the max class probability).
+
+## How well did it transfer?
+
+Compare the inferred subtype to CMScaller's reference call:
+
+```{r eval-block, eval = have_deps}
+ref <- pData(eset)$cms_pam_all
+ok  <- !is.na(ref)
+
+mean(as.character(res$class)[ok] == ref[ok])          # overall agreement
+table(reference = ref[ok], inferpheno = res$class[ok]) # per-subtype
+```
+
+```{r eval-show, echo = FALSE, eval = !have_deps}
+cat("#> [1] 0.6474576\n\n",
+    "#>          inferpheno\n",
+    "#> reference CMS1 CMS2 CMS3 CMS4\n",
+    "#>      CMS1   25    0    0    4\n",
+    "#>      CMS2    7   98    9   21\n",
+    "#>      CMS3    7    4    4    3\n",
+    "#>      CMS4   12   31    6   64\n",
+    sep = "")
+```
+
+## Visualizing the transfer
+
+The confusion table reads more clearly as a heatmap: cells hold the sample
+counts, shaded by per-reference-subtype recall (each row sums to 100%), so a
+strong diagonal means faithful transfer.
+
+```{r cm-heatmap, eval = have_plot, fig.width = 5.2, fig.height = 4.4, fig.align = "center"}
+library(ggplot2)
+
+ref  <- pData(eset)$cms_pam_all
+ok   <- !is.na(ref)
+lv   <- c("CMS1", "CMS2", "CMS3", "CMS4")
+pred <- factor(as.character(res$class)[ok], levels = lv)
+ref  <- factor(ref[ok], levels = lv)
+
+cm        <- table(reference = ref, inferred = pred)
+cm_df     <- as.data.frame(cm)
+cm_df$recall <- as.data.frame(prop.table(cm, margin = 1))$Freq
+
+ggplot(cm_df, aes(inferred, reference, fill = recall)) +
+  geom_tile(colour = "grey90") +
+  geom_text(aes(label = Freq), size = 4.2) +
+  scale_fill_gradient(low = "white", high = "#2166ac",
+                      limits = c(0, 1), labels = scales::percent) +
+  scale_y_discrete(limits = rev) +
+  coord_equal() +
+  labs(x = "Inferred subtype", y = "Reference (CMScaller)", fill = "Row %",
+       title = "CMS transfer to held-out metastatic CRC") +
+  theme_minimal(base_size = 12)
+```
+
+The diagonal holds for CMS1 (86%) and CMS2 (73%); CMS4 is recovered only
+moderately (57%, with much of the remainder pulled into CMS2), and CMS3
+(bottom row, 22%) scatters — the expected weak spot for the rarest, least
+separable subtype.
+
+The `confidence` column — the max class probability — is also informative:
+calls that agree with the reference are made far more confidently than the
+ones that miss, so confidence is a usable triage signal on a new cohort.
+
+```{r conf-box, eval = have_plot, fig.width = 4.8, fig.height = 4.2, fig.align = "center"}
+conf_df <- data.frame(
+  confidence = res$confidence[ok],
+  outcome    = ifelse(as.character(pred) == as.character(ref),
+                      "agrees", "differs"))
+
+ggplot(conf_df, aes(outcome, confidence, fill = outcome)) +
+  geom_violin(trim = FALSE, alpha = 0.55, colour = NA) +
+  geom_boxplot(width = 0.12, outlier.shape = NA, alpha = 0.8) +
+  geom_jitter(width = 0.08, height = 0, size = 1, alpha = 0.3) +
+  scale_fill_manual(values = c(agrees = "#1b7837", differs = "#b2182b")) +
+  labs(x = NULL, y = "Confidence (max class probability)",
+       title = "Agreeing calls are made more confidently") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "none")
+```
+
+**65% agreement** on a cohort the head never saw — from a panel of just
+**three RAVs** (`RAV205`, `RAV476`, `RAV939`), and despite only ~900 of the
+basis's ~14,000 genes overlapping this trimmed series, so the projection
+degrades gracefully under heavy gene drop-out. CMS1 and CMS2 transfer cleanly;
+CMS4 is recovered moderately and CMS3 stays the weak spot. This three-RAV panel
+is the size the head ships with: it is the smallest panel that the model
+selection rule certifies on a *proper score plus calibration and selection
+stability*, deliberately preferred over a larger panel that scores higher on
+raw discrimination but overfits and miscalibrates. A larger panel or a
+fuller-transcriptome cohort lifts raw agreement, at the cost of the calibration
+this compact panel buys.
+
+# Notes for your own data
+
+- **Project a cohort, not single samples.** Scores are standardized across
+  the input matrix, so transfer is best when you pass a reasonably sized,
+  comparable batch.
+- **Transfer is strongest within the trained tissue domain.** A head learns
+  whatever distinguishes the label *in its training tissues*. The
+  `cms_subtype` head transfers across CRC platforms and stages; do not
+  expect a head to carry to an unrelated tissue where the discriminating
+  axis may differ. Validate against a labeled held-out set, as above, before
+  trusting a new domain.
+- **Inspect the panel.** `listRAVs("cms_subtype")` returns the exact RAV
+  columns a head uses; `availablePheno()` reports its out-of-fold metric.
+
+# Session info
+
+```{r}
+sessionInfo()
+```
