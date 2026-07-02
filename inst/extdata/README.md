@@ -6,9 +6,11 @@ cohesion basis (`cohesion_subset.rds`) they project onto.
 
 Each head is stored slimmed: the caret `train` object's training-frame
 baggage (the captured formula/`terms` environment, `glm$model`, resampling
-folds) is stripped at bundle time, leaving only what `predict()` needs.
-This is what keeps each `.rds` ~0.1 MB instead of tens of MB; predictions
-are unchanged (verified before/after in `../scripts/slim_head.R`).
+folds) is stripped at build time, leaving only what `predict()` needs.
+This is what keeps each `.rds` ~0.1 MB instead of tens of MB. The stripping
+happens inside `InferPhenoBuilder::build_pheno_head()` (via its internal
+`slim_fitted_head()`), which re-checks that predictions are unchanged
+before writing.
 
 The shipped heads are fit on the **cohesion-gated de-redundant RAVmodel**
 (1,760 RAVs; `rav_prior = "cohesion"`). Each head is a non-penalized
