@@ -18,13 +18,20 @@ suppressPackageStartupMessages({
 extdata_dir <- file.path("..", "InferPheno", "inst", "extdata")
 dir.create(extdata_dir, showWarnings = FALSE, recursive = TRUE)
 
+`%||%` <- function(a, b) if (is.null(a)) b else a
+
+## slim_head() / .check_slim(): strip training-frame baggage from fitted heads.
+source(file.path(extdata_dir, "..", "scripts", "slim_head.R"))
+
 bundle_one <- function(rds_name, phenotype, kind, rav_cols, model,
                       training_meta) {
+  slimmed <- slim_head(model)
+  .check_slim(model, slimmed, kind, rav_cols)  # aborts if predictions diverge
   obj <- methods::new("RAVPhenoModel",
                       phenotype     = phenotype,
                       rav_prior     = getOption("inferpheno.rav_prior", "C2"),
                       rav_cols      = rav_cols,
-                      model         = model,
+                      model         = slimmed,
                       kind          = kind,
                       training_meta = training_meta)
   out <- file.path(extdata_dir, rds_name)
@@ -120,5 +127,3 @@ if (file.exists("results/aim1_crc_subtype_full_model.rds")) {
   message("Skipping cms_subtype: aim1_crc_subtype is still blocked ",
           "(training eSets/ missing).")
 }
-
-`%||%` <- function(a, b) if (is.null(a)) b else a
