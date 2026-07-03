@@ -37,6 +37,19 @@ Projects \code{expr} onto the same RAV basis used to train the chosen
 or predicted values (regression), plus a per-sample \code{confidence}
 column and a head-level performance summary attached as attributes.
 }
+\examples{
+# Which phenotypes can be inferred today?
+availablePheno()
+
+# Project synthetic expression through the bundled basis and predict sex.
+# Real use passes a genes-x-samples matrix with HGNC symbol rownames.
+basis <- readRDS(system.file("extdata", "cohesion_subset.rds",
+                             package = "InferPheno"))
+set.seed(1)
+expr <- matrix(stats::rnorm(nrow(basis) * 4), nrow = nrow(basis),
+               dimnames = list(rownames(basis), paste0("S", 1:4)))
+inferpheno(expr, "sex")
+}
 \seealso{
 \code{\link[=availablePheno]{availablePheno()}}
 }

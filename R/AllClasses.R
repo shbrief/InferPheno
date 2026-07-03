@@ -10,6 +10,15 @@
 #' @slot kind character. One of "binary", "multiclass", "regression", "cox".
 #' @slot training_meta list. Cohort composition, n, source paper.
 #'
+#' @return An object of class `RAVPhenoModel`. Shipped heads are serialized
+#'   instances loaded by [inferpheno()]; construct new ones with
+#'   `InferPhenoBuilder::build_pheno_head()`.
+#' @examples
+#' # Each shipped head is a serialized RAVPhenoModel:
+#' m <- readRDS(system.file("extdata", "sex.rds", package = "InferPheno"))
+#' m@phenotype
+#' m@kind
+#' m@rav_cols
 #' @export
 setClass("RAVPhenoModel",
   representation(

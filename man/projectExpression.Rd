@@ -4,16 +4,32 @@
 \alias{projectExpression}
 \title{Project an expression matrix onto the RAV basis}
 \usage{
-projectExpression(expr, prior = "C2")
+projectExpression(expr, prior = "C2", rav_model = NULL)
 }
 \arguments{
 \item{expr}{A genes-x-samples matrix or SummarizedExperiment.}
 
-\item{prior}{Character. GSS prior name. Default \code{"C2"}.}
+\item{prior}{Character. GSS prior name, resolved with
+\code{GenomicSuperSignature::getModel()}. Default \code{"C2"}. Ignored when
+\code{rav_model} is supplied.}
+
+\item{rav_model}{Optional pre-loaded GSS RAV model. When supplied it is used
+directly, skipping the \code{getModel(prior)} fetch -- useful for reusing an
+already-loaded basis or for lightweight examples.}
 }
 \value{
 A samples-x-RAVs numeric matrix.
 }
 \description{
 Project an expression matrix onto the RAV basis
+}
+\examples{
+# Reuse any pre-loaded basis; the mini model ships with
+# GenomicSuperSignature for lightweight examples.
+data("miniRAVmodel", package = "GenomicSuperSignature")
+genes <- rownames(GenomicSuperSignature::RAVindex(miniRAVmodel))
+set.seed(1)
+expr <- matrix(stats::rnorm(length(genes) * 3), nrow = length(genes),
+               dimnames = list(genes, paste0("S", 1:3)))
+projectExpression(expr, rav_model = miniRAVmodel)
 }

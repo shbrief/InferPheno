@@ -4,6 +4,11 @@
 \name{RAVPhenoModel-class}
 \alias{RAVPhenoModel-class}
 \title{RAVPhenoModel}
+\value{
+An object of class \code{RAVPhenoModel}. Shipped heads are serialized
+instances loaded by \code{\link[=inferpheno]{inferpheno()}}; construct new ones with
+\code{InferPhenoBuilder::build_pheno_head()}.
+}
 \description{
 A supervised head fit on top of a fixed RAV basis. Used to predict one
 phenotype from new gene expression data without retraining the basis.
@@ -24,3 +29,10 @@ phenotype from new gene expression data without retraining the basis.
 \item{\code{training_meta}}{list. Cohort composition, n, source paper.}
 }}
 
+\examples{
+# Each shipped head is a serialized RAVPhenoModel:
+m <- readRDS(system.file("extdata", "sex.rds", package = "InferPheno"))
+m@phenotype
+m@kind
+m@rav_cols
+}

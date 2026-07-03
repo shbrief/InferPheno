@@ -7,8 +7,15 @@
 listRAVs(phenotype)
 }
 \arguments{
-\item{phenotype}{Character.}
+\item{phenotype}{Character. One of \code{availablePheno()$phenotype}.}
+}
+\value{
+A character vector of the RAV column names the phenotype's head
+uses as features.
 }
 \description{
 RAV columns used by a bundled head
+}
+\examples{
+listRAVs("msi_status")
 }

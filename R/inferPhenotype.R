@@ -27,6 +27,18 @@
 #'   was used and its out-of-fold performance.
 #'
 #' @seealso [availablePheno()]
+#' @examples
+#' # Which phenotypes can be inferred today?
+#' availablePheno()
+#'
+#' # Project synthetic expression through the bundled basis and predict sex.
+#' # Real use passes a genes-x-samples matrix with HGNC symbol rownames.
+#' basis <- readRDS(system.file("extdata", "cohesion_subset.rds",
+#'                              package = "InferPheno"))
+#' set.seed(1)
+#' expr <- matrix(stats::rnorm(nrow(basis) * 4), nrow = nrow(basis),
+#'                dimnames = list(rownames(basis), paste0("S", 1:4)))
+#' inferpheno(expr, "sex")
 #' @export
 inferpheno <- function(expr, phenotype, rav_model = NULL) {
   m <- .load_pheno_model(phenotype)
@@ -51,11 +63,27 @@ inferpheno <- function(expr, phenotype, rav_model = NULL) {
 
 #' Project an expression matrix onto the RAV basis
 #' @param expr A genes-x-samples matrix or SummarizedExperiment.
-#' @param prior Character. GSS prior name. Default `"C2"`.
+#' @param prior Character. GSS prior name, resolved with
+#'   `GenomicSuperSignature::getModel()`. Default `"C2"`. Ignored when
+#'   `rav_model` is supplied.
+#' @param rav_model Optional pre-loaded GSS RAV model. When supplied it is used
+#'   directly, skipping the `getModel(prior)` fetch -- useful for reusing an
+#'   already-loaded basis or for lightweight examples.
 #' @return A samples-x-RAVs numeric matrix.
+#' @examples
+#' # Reuse any pre-loaded basis; the mini model ships with
+#' # GenomicSuperSignature for lightweight examples.
+#' data("miniRAVmodel", package = "GenomicSuperSignature")
+#' genes <- rownames(GenomicSuperSignature::RAVindex(miniRAVmodel))
+#' set.seed(1)
+#' expr <- matrix(stats::rnorm(length(genes) * 3), nrow = length(genes),
+#'                dimnames = list(genes, paste0("S", 1:3)))
+#' projectExpression(expr, rav_model = miniRAVmodel)
 #' @export
-projectExpression <- function(expr, prior = "C2") {
-  rav_model <- GenomicSuperSignature::getModel(prior, load = TRUE)
+projectExpression <- function(expr, prior = "C2", rav_model = NULL) {
+  if (is.null(rav_model)) {
+    rav_model <- GenomicSuperSignature::getModel(prior, load = TRUE)
+  }
   if (methods::is(expr, "SummarizedExperiment")) {
     expr <- SummarizedExperiment::assay(expr)
   }
@@ -73,6 +101,8 @@ projectExpression <- function(expr, prior = "C2") {
 #' @return A data.frame with columns `phenotype`, `kind`, `n_train`,
 #'   `metric` (which out-of-fold metric `perf` reports), and `perf`.
 #' @seealso [inferpheno()]
+#' @examples
+#' availablePheno()
 #' @export
 availablePheno <- function() {
   reg <- .pheno_registry()
@@ -95,7 +125,11 @@ availablePheno <- function() {
 }
 
 #' RAV columns used by a bundled head
-#' @param phenotype Character.
+#' @param phenotype Character. One of `availablePheno()$phenotype`.
+#' @return A character vector of the RAV column names the phenotype's head
+#'   uses as features.
+#' @examples
+#' listRAVs("msi_status")
 #' @export
 listRAVs <- function(phenotype) {
   .load_pheno_model(phenotype)@rav_cols

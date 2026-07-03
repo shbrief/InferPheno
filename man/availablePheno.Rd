@@ -15,6 +15,9 @@ Reads each bundled head from \verb{inst/extdata/} to surface its training
 metadata. The list is the contract: every row corresponds to a
 phenotype that \code{inferpheno()} can be called on today.
 }
+\examples{
+availablePheno()
+}
 \seealso{
 \code{\link[=inferpheno]{inferpheno()}}
 }
