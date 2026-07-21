@@ -28,13 +28,23 @@ overfits — most visibly for `cms_subtype` (K=3). `sex` was not evaluated in
 §8 (its TCGA data was archived during that run) and falls back to its §4
 discrimination-only K=8.
 
-| File            | Phenotype   | Kind       | Panel K | OOF metric                |
-|-----------------|-------------|------------|--------:|---------------------------|
-| sex.rds         | sex         | binary     |       8 | AUC 0.994                 |
-| msi_status.rds  | msi_status  | binary     |      20 | AUC 0.951                 |
-| msi_score.rds   | msi_score   | regression |      50 | R² 0.701, ρ 0.441         |
-| cms_subtype.rds | cms_subtype | multiclass |       3 | acc 0.714, macro-F1 0.674 |
-| neutrophil.rds  | neutrophil  | regression |      10 | R² 0.987, ρ 0.966         |
+| File            | Phenotype   | Kind       | Panel K | OOF metric                | External transfer            |
+|-----------------|-------------|------------|--------:|---------------------------|------------------------------|
+| sex.rds         | sex         | binary     |       8 | AUC 0.994                 | **FAILS** — AUC 0.540 (GTEx) |
+| msi_status.rds  | msi_status  | binary     |      20 | AUC 0.951                 | transfers — AUC 0.824 (GEO)  |
+| msi_score.rds   | msi_score   | regression |      50 | R² 0.701, ρ 0.441         | untested (no MANTIS cohort)  |
+| cms_subtype.rds | cms_subtype | multiclass |       3 | acc 0.714, macro-F1 0.674 | transfers — acc 0.653 (gold) |
+| neutrophil.rds  | neutrophil  | regression |      10 | R² 0.987, ρ 0.966         | transfers — ρ 0.610 (SLE-WB) |
+
+> **The `sex` head does not transfer across cohorts.** Its high OOF AUC is a
+> training-cohort confound — sex was nearly identical to cancer type in the TCGA
+> training cohorts (OV 100% female, PRAD 100% male), so its panel RAVs encode
+> tumor biology, not sex, and collapse to near chance (AUC 0.540) on GTEx normal
+> tissue. `inferpheno(expr, "sex")` warns at call time; do not use it for
+> cross-cohort inference pending a de-confounded retrain. The `transfer` column
+> of `availablePheno()` carries the same verdict for every head, produced by the
+> standing external-validation gate
+> (`InferPhenoBuilder/inst/scripts/external_validation/`).
 
 ## Basis loading
 

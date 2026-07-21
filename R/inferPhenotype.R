@@ -42,6 +42,12 @@
 #' @export
 inferpheno <- function(expr, phenotype, rav_model = NULL) {
   m <- .load_pheno_model(phenotype)
+  reg_ph <- .pheno_registry()[[phenotype]]
+  if (!is.null(reg_ph) && identical(reg_ph$transfer, "fails")) {
+    warning("The '", phenotype, "' head FAILS external transfer: ",
+            reg_ph$transfer_note, " In-cohort perf does not carry over to a ",
+            "new cohort. See availablePheno().", call. = FALSE)
+  }
   if (is.null(rav_model)) {
     rav_model <- .resolve_rav_model(m@rav_prior)
   }
@@ -99,7 +105,12 @@ projectExpression <- function(expr, prior = "C2", rav_model = NULL) {
 #' phenotype that `inferpheno()` can be called on today.
 #'
 #' @return A data.frame with columns `phenotype`, `kind`, `n_train`,
-#'   `metric` (which out-of-fold metric `perf` reports), and `perf`.
+#'   `metric` (which out-of-fold metric `perf` reports), `perf`, and the
+#'   leave-one-SOURCE-out external-validation verdict: `transfer`
+#'   (`"transfers"` / `"fails"` / `"untested"`), `transfer_perf` (the external
+#'   metric value), and `transfer_note`. A head can score high on `perf`
+#'   (in-cohort out-of-fold) yet `fail` external transfer when its training
+#'   cohorts confound the label — see `sex`.
 #' @seealso [inferpheno()]
 #' @examples
 #' availablePheno()
@@ -114,11 +125,14 @@ availablePheno <- function() {
     }
     m <- readRDS(rds)
     perf <- .head_perf(m)
-    data.frame(phenotype = ph,
-               kind      = m@kind,
-               n_train   = as.integer(m@training_meta$n_train %||% NA),
-               metric    = perf$metric %||% NA_character_,
-               perf      = perf$value %||% NA_real_,
+    data.frame(phenotype     = ph,
+               kind          = m@kind,
+               n_train       = as.integer(m@training_meta$n_train %||% NA),
+               metric        = perf$metric %||% NA_character_,
+               perf          = perf$value %||% NA_real_,
+               transfer      = reg[[ph]]$transfer %||% NA_character_,
+               transfer_perf = reg[[ph]]$transfer_perf %||% NA_real_,
+               transfer_note = reg[[ph]]$transfer_note %||% NA_character_,
                stringsAsFactors = FALSE)
   })
   do.call(rbind, rows)
@@ -243,12 +257,33 @@ print.inferpheno_result <- function(x, ...) {
 }
 
 .pheno_registry <- function() {
+  # `transfer` records the leave-one-SOURCE-out external-validation verdict
+  # from the standing gate (InferPhenoBuilder external_validation.R). It is
+  # deliberately surfaced by availablePheno() so a head that scores well
+  # in-cohort but fails on a genuinely external source is not silently
+  # advertised as trustworthy. Values: "transfers" / "fails" / "untested".
+  # `transfer_perf` is the external metric value (same kind as `perf`).
   list(
-    sex         = list(rds = "sex.rds",         kind = "binary"),
-    msi_status  = list(rds = "msi_status.rds",  kind = "binary"),
-    msi_score   = list(rds = "msi_score.rds",   kind = "regression"),
-    cms_subtype = list(rds = "cms_subtype.rds", kind = "multiclass"),
-    neutrophil  = list(rds = "neutrophil.rds",  kind = "regression")
+    sex         = list(rds = "sex.rds",         kind = "binary",
+                       transfer = "fails", transfer_perf = 0.540,
+                       transfer_note = paste0(
+                         "cohort-confounded (sex proxied cancer type in ",
+                         "training); external GTEx AUC 0.540 (near chance). ",
+                         "Do NOT use for cross-cohort inference.")),
+    msi_status  = list(rds = "msi_status.rds",  kind = "binary",
+                       transfer = "transfers", transfer_perf = 0.824,
+                       transfer_note = "external GEO CRC (Affymetrix) AUC 0.824."),
+    msi_score   = list(rds = "msi_score.rds",   kind = "regression",
+                       transfer = "untested", transfer_perf = NA_real_,
+                       transfer_note = "no external MANTIS cohort wired yet."),
+    cms_subtype = list(rds = "cms_subtype.rds", kind = "multiclass",
+                       transfer = "transfers", transfer_perf = 0.653,
+                       transfer_note = "external GSE37892 gold CMS accuracy 0.653."),
+    neutrophil  = list(rds = "neutrophil.rds",  kind = "regression",
+                       transfer = "transfers", transfer_perf = 0.610,
+                       transfer_note = paste0(
+                         "external SLE-WB clinical CBC Spearman 0.610 ",
+                         "(at the expr-score->clinical-count measurement ceiling)."))
   )
 }
 

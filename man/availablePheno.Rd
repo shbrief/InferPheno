@@ -8,7 +8,12 @@ availablePheno()
 }
 \value{
 A data.frame with columns \code{phenotype}, \code{kind}, \code{n_train},
-\code{metric} (which out-of-fold metric \code{perf} reports), and \code{perf}.
+\code{metric} (which out-of-fold metric \code{perf} reports), \code{perf}, and the
+leave-one-SOURCE-out external-validation verdict: \code{transfer}
+(\code{"transfers"} / \code{"fails"} / \code{"untested"}), \code{transfer_perf} (the external
+metric value), and \code{transfer_note}. A head can score high on \code{perf}
+(in-cohort out-of-fold) yet \code{fail} external transfer when its training
+cohorts confound the label — see \code{sex}.
 }
 \description{
 Reads each bundled head from \verb{inst/extdata/} to surface its training
