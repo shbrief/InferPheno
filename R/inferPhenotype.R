@@ -202,6 +202,8 @@ print.inferpheno_result <- function(x, ...) {
     "r2_oof"
   } else if (!is.null(meta$accuracy_oof) && !is.na(meta$accuracy_oof)) {
     "accuracy_oof"
+  } else if (!is.null(meta$c_index_oof) && !is.na(meta$c_index_oof)) {
+    "c_index_oof"
   } else NA_character_
   value <- if (!is.na(metric)) meta[[metric]] else NA_real_
   list(metric = metric, value = value,
