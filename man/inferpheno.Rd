@@ -4,7 +4,12 @@
 \alias{inferpheno}
 \title{Infer a clinical phenotype from a gene expression matrix}
 \usage{
-inferpheno(expr, phenotype, rav_model = NULL)
+inferpheno(
+  expr,
+  phenotype,
+  rav_model = NULL,
+  log_input = c("auto", "yes", "no")
+)
 }
 \arguments{
 \item{expr}{A genes-x-samples numeric matrix or SummarizedExperiment.
@@ -23,6 +28,13 @@ the box). To use the full basis instead -- e.g. to add or refit heads --
 set \code{getOption("inferpheno.rav_model_path")} or the \code{INFERPHENO_RAV_MODEL}
 environment variable to a full RAVmodel \code{.rds}; an explicit override always
 wins. Pass \code{rav_model} directly to override either.}
+
+\item{log_input}{One of \code{"auto"} (default), \code{"yes"}, or \code{"no"}. The RAV basis
+is log-native and the heads are trained on log2-scale expression, so linear
+input (raw counts / RSEM / TPM) must be log2-transformed before projection.
+\code{"auto"} logs only when the input looks linear (leaving already-log
+microarray / log2-CPM input untouched), \code{"yes"} always applies \code{log2(x + 1)},
+\code{"no"} never transforms. Use \code{"no"} only if you have already log-transformed.}
 }
 \value{
 An \code{inferpheno_result} (data.frame subclass) with one row per

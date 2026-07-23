@@ -4,7 +4,12 @@
 \alias{projectExpression}
 \title{Project an expression matrix onto the RAV basis}
 \usage{
-projectExpression(expr, prior = "C2", rav_model = NULL)
+projectExpression(
+  expr,
+  prior = "C2",
+  rav_model = NULL,
+  log_input = c("auto", "yes", "no")
+)
 }
 \arguments{
 \item{expr}{A genes-x-samples matrix or SummarizedExperiment.}
@@ -16,6 +21,10 @@ projectExpression(expr, prior = "C2", rav_model = NULL)
 \item{rav_model}{Optional pre-loaded GSS RAV model. When supplied it is used
 directly, skipping the \code{getModel(prior)} fetch -- useful for reusing an
 already-loaded basis or for lightweight examples.}
+
+\item{log_input}{One of \code{"auto"} (default), \code{"yes"}, or \code{"no"} -- see
+\code{\link[=inferpheno]{inferpheno()}}. Linear input is log2-transformed before projection because
+the RAV basis is log-native; \code{"auto"} leaves already-log input untouched.}
 }
 \value{
 A samples-x-RAVs numeric matrix.

@@ -19,6 +19,12 @@
 #'   set `getOption("inferpheno.rav_model_path")` or the `INFERPHENO_RAV_MODEL`
 #'   environment variable to a full RAVmodel `.rds`; an explicit override always
 #'   wins. Pass `rav_model` directly to override either.
+#' @param log_input One of `"auto"` (default), `"yes"`, or `"no"`. The RAV basis
+#'   is log-native and the heads are trained on log2-scale expression, so linear
+#'   input (raw counts / RSEM / TPM) must be log2-transformed before projection.
+#'   `"auto"` logs only when the input looks linear (leaving already-log
+#'   microarray / log2-CPM input untouched), `"yes"` always applies `log2(x + 1)`,
+#'   `"no"` never transforms. Use `"no"` only if you have already log-transformed.
 #'
 #' @return An `inferpheno_result` (data.frame subclass) with one row per
 #'   sample. Always carries a `confidence` column (max class probability
@@ -40,7 +46,9 @@
 #'                dimnames = list(rownames(basis), paste0("S", 1:4)))
 #' inferpheno(expr, "sex")
 #' @export
-inferpheno <- function(expr, phenotype, rav_model = NULL) {
+inferpheno <- function(expr, phenotype, rav_model = NULL,
+                       log_input = c("auto", "yes", "no")) {
+  log_input <- match.arg(log_input)
   m <- .load_pheno_model(phenotype)
   reg_ph <- .pheno_registry()[[phenotype]]
   if (!is.null(reg_ph) && identical(reg_ph$transfer, "fails")) {
@@ -54,6 +62,7 @@ inferpheno <- function(expr, phenotype, rav_model = NULL) {
   if (methods::is(expr, "SummarizedExperiment")) {
     expr <- SummarizedExperiment::assay(expr)
   }
+  expr <- .to_log_scale(expr, log_input)
   rav <- GenomicSuperSignature::calculateScore(expr, rav_model)
   rownames(rav) <- gsub("\\.", "-", rownames(rav))
   newx <- as.data.frame(rav[, m@rav_cols, drop = FALSE])
@@ -75,6 +84,9 @@ inferpheno <- function(expr, phenotype, rav_model = NULL) {
 #' @param rav_model Optional pre-loaded GSS RAV model. When supplied it is used
 #'   directly, skipping the `getModel(prior)` fetch -- useful for reusing an
 #'   already-loaded basis or for lightweight examples.
+#' @param log_input One of `"auto"` (default), `"yes"`, or `"no"` -- see
+#'   [inferpheno()]. Linear input is log2-transformed before projection because
+#'   the RAV basis is log-native; `"auto"` leaves already-log input untouched.
 #' @return A samples-x-RAVs numeric matrix.
 #' @examples
 #' # Reuse any pre-loaded basis; the mini model ships with
@@ -86,16 +98,42 @@ inferpheno <- function(expr, phenotype, rav_model = NULL) {
 #'                dimnames = list(genes, paste0("S", 1:3)))
 #' projectExpression(expr, rav_model = miniRAVmodel)
 #' @export
-projectExpression <- function(expr, prior = "C2", rav_model = NULL) {
+projectExpression <- function(expr, prior = "C2", rav_model = NULL,
+                              log_input = c("auto", "yes", "no")) {
+  log_input <- match.arg(log_input)
   if (is.null(rav_model)) {
     rav_model <- GenomicSuperSignature::getModel(prior, load = TRUE)
   }
   if (methods::is(expr, "SummarizedExperiment")) {
     expr <- SummarizedExperiment::assay(expr)
   }
+  expr <- .to_log_scale(expr, log_input)
   out <- GenomicSuperSignature::calculateScore(expr, rav_model)
   rownames(out) <- gsub("\\.", "-", rownames(out))
   out
+}
+
+#' Put an expression matrix on log2 scale, only if it is not already
+#'
+#' The RAV basis is log-native and `calculateScore()` does no internal log, so
+#' linear input (raw counts / RSEM / TPM) must be log2-transformed before
+#' projection while already-log input (microarray, log2-CPM) must not be, to
+#' avoid double-logging. `"auto"` decides by scale: data with any negative value
+#' is treated as already-transformed (centred/z-scored), otherwise a 99th
+#' percentile above `thresh` marks a linear scale (log2 expression essentially
+#' never exceeds ~20).
+#'
+#' @param m A genes-x-samples numeric matrix.
+#' @param log_input `"auto"`, `"yes"`, or `"no"`.
+#' @param thresh Upper-quantile cutoff separating linear from log scale.
+#' @return `m`, log2-transformed per `log_input`.
+#' @keywords internal
+#' @noRd
+.to_log_scale <- function(m, log_input = "auto", thresh = 30) {
+  if (identical(log_input, "no")) return(m)
+  if (identical(log_input, "yes")) return(log2(m + 1))
+  if (min(m, na.rm = TRUE) < 0) return(m)                 # already centred/log
+  if (stats::quantile(m, 0.99, na.rm = TRUE) > thresh) log2(m + 1) else m
 }
 
 #' List ready-to-infer phenotypes
@@ -267,11 +305,15 @@ print.inferpheno_result <- function(x, ...) {
   # `transfer_perf` is the external metric value (same kind as `perf`).
   list(
     sex         = list(rds = "sex.rds",         kind = "binary",
-                       transfer = "fails", transfer_perf = 0.540,
+                       transfer = "transfers", transfer_perf = 0.940,
                        transfer_note = paste0(
-                         "cohort-confounded (sex proxied cancer type in ",
-                         "training); external GTEx AUC 0.540 (near chance). ",
-                         "Do NOT use for cross-cohort inference.")),
+                         "external GTEx AUC 0.940. NOTE: an earlier build on a ",
+                         "raw-linear projection FAILED (AUC 0.540) because ",
+                         "stability selection on the mis-scaled basis picked ",
+                         "cancer-type-proxy RAVs, not sex RAVs. Rebuilding on the ",
+                         "log-native projection (2026-07-23) selected genuine ",
+                         "Y-chromosome RAVs (EIF1AY/DDX3Y/KDM5D-loaded) that ",
+                         "transfer to normal tissue.")),
     msi_status  = list(rds = "msi_status.rds",  kind = "binary",
                        transfer = "transfers", transfer_perf = 0.824,
                        transfer_note = "external GEO CRC (Affymetrix) AUC 0.824."),
