@@ -31,3 +31,7 @@ vignettes/*.html
 
 # Task / scratch workspace (not part of the package)
 task-inferpheno/
+
+# Pre-log head backups (superseded models kept locally, not bundled)
+inst/extdata/_backup_prelog_*/
+inst/extdata/legacy/
