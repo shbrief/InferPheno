@@ -321,13 +321,31 @@ print.inferpheno_result <- function(x, ...) {
                        transfer = "untested", transfer_perf = NA_real_,
                        transfer_note = "no external MANTIS cohort wired yet."),
     cms_subtype = list(rds = "cms_subtype.rds", kind = "multiclass",
-                       transfer = "transfers", transfer_perf = 0.653,
-                       transfer_note = "external GSE37892 gold CMS accuracy 0.653."),
-    neutrophil  = list(rds = "neutrophil.rds",  kind = "regression",
-                       transfer = "transfers", transfer_perf = 0.610,
+                       transfer = "transfers", transfer_perf = NA_real_,
                        transfer_note = paste0(
-                         "external SLE-WB clinical CBC Spearman 0.610 ",
-                         "(at the expr-score->clinical-count measurement ceiling)."))
+                         "external GSE37892 gold CMS accuracy 0.653 was measured ",
+                         "on the previous K=3 head trained on 1,355 samples. The ",
+                         "2026-09-12 asymptote_cal rebuild (K=10, n=1,517 after the ",
+                         "TCGA sample_id fix) has NOT been re-scored externally; ",
+                         "the figure is withheld rather than carried over.")),
+    neutrophil  = list(rds = "neutrophil.rds",  kind = "regression",
+                       transfer = "transfers", transfer_perf = NA_real_,
+                       transfer_note = paste0(
+                         "external SLE-WB clinical CBC Spearman 0.610 (at the ",
+                         "expr-score->clinical-count measurement ceiling) was ",
+                         "measured on the previous K=10 head. The 2026-09-12 ",
+                         "asymptote_cal rebuild (K=5) has NOT been re-scored ",
+                         "externally; the figure is withheld rather than ",
+                         "carried over.")),
+    sle_neutrophil = list(rds = "sle_neutrophil.rds", kind = "regression",
+                       transfer = "untested", transfer_perf = NA_real_,
+                       transfer_note = paste0(
+                         "no external cohort: SLE-WB is itself the external set ",
+                         "for `neutrophil`, so the two cannot validate each other. ",
+                         "NOTE: SLE-WB is longitudinal (853 samples, 156 ",
+                         "participants) and this head was sized with folds ",
+                         "assigned per sample, so its R2 0.662 is mildly optimistic ",
+                         "(0.645 under participant-grouped folds)."))
   )
 }
 

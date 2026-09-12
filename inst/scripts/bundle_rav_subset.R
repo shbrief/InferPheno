@@ -20,7 +20,8 @@ suppressPackageStartupMessages({
 extdata_dir <- file.path("inst", "extdata")
 
 ## --- RAV union across the bundled heads (authoritative @rav_cols) ----------
-heads <- c("sex", "msi_status", "msi_score", "cms_subtype", "neutrophil")
+heads <- c("sex", "msi_status", "msi_score", "cms_subtype", "neutrophil",
+           "sle_neutrophil")
 union_ravs <- unique(unlist(lapply(heads, function(ph) {
   readRDS(file.path(extdata_dir, paste0(ph, ".rds")))@rav_cols
 })))

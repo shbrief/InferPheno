@@ -15,9 +15,17 @@ before writing.
 The shipped heads are fit on the **cohesion-gated de-redundant RAVmodel**
 (1,760 RAVs; `rav_prior = "cohesion"`). Each head is a non-penalized
 model (binary → `glm`, multiclass → `multinom`, regression → `lm`) over a
-top-K-by-|β| RAV panel, refit on all training data. They are produced by
-`InferPhenoBuilder::build_all_heads()` (driver:
-`InferPhenoBuilder/inst/scripts/build_cohesion_heads.R`).
+top-K-by-|β| RAV panel, refit on all training data. As of 2026-09-12 all six shipped heads are sized by a single procedure,
+`asymptote_cal`, at one protocol and seed. The build driver, per-head selection
+tables and the validation report for that run live in
+`InferPhenoPaper/paper/asymptote_cal_final/`. Earlier heads are preserved under
+`legacy_2026-09-12/`. Heads are produced by
+`InferPhenoBuilder::build_pheno_head()` / `build_all_heads()`.
+
+`cohesion_subset.rds` must be regenerated whenever a shipped panel changes: it
+carries exactly the union of the shipped heads' `@rav_cols` (currently 97 RAVs),
+so `inferpheno()` cannot resolve a basis for a RAV it omits. Rebuild it with
+`inst/scripts/bundle_rav_subset.R`.
 
 Panel K per head is the size chosen by the paper's survivor-ranked,
 multi-metric selection (a proper scoring rule, gated by calibration slope
